@@ -162,4 +162,53 @@ contract LudoGameTest  is Test {
       assertEq(game.getPlayerInTurn(), players[1]);
     }
   }
+
+  function test__Player1AndPlayer2Turns() public startGame {
+    // Player 1 PLays
+    address player1 = players[0];
+
+    uint player1StartPos = game.getTokenPosition(game.getPlayerInfo(player1).tokenInPlay);
+    assertEq(player1StartPos, 0);
+
+    vm.prank(player1);
+
+    uint8 roll1 = game.play();
+    
+    uint token1Position = game.getTokenPosition(game.getPlayerInfo(player1).tokenInPlay);
+
+    if (roll1 == 6) {
+      assertEq(token1Position, 6);
+    }
+    else {
+      // Can't move if starting roll is not a 6
+      assertEq(game.getPlayerInfo(player1).tokenInPlay.ownedBy, address(0));
+      assertEq(token1Position, 0);
+      assertEq(game.getPlayerInTurn(), players[1]);
+    }
+
+    // Assert that players cannot play if it' snot their turn yet
+
+    // Player 2 Plays
+    address player2 = players[1];
+
+    uint initialPosition = game.getTokenPosition(game.getPlayerInfo(player2).tokenInPlay);
+    assertEq(initialPosition, 0);
+
+    vm.prank(player2);
+
+    uint8 roll2 = game.play();
+    
+    uint token2Position = game.getTokenPosition(game.getPlayerInfo(player2).tokenInPlay);
+
+    if (roll2 == 6) {
+      uint startPos = (game.MAX_BOARD_LENGTH() / game.MAX_PLAYERS()) * 1;
+      assertEq(token2Position, startPos + roll2);
+    }
+    else {
+      // Can't deploy a token if starting roll is not a 6
+      assertEq(game.getPlayerInfo(player2).tokenInPlay.ownedBy, address(0));
+      assertEq(token2Position, 0);
+      assertEq(game.getPlayerInTurn(), players[2]);
+    }
+  }
 }
