@@ -31,16 +31,17 @@ contract LudoGame {
         address addr;
         uint8 tokenLeft;
         Token tokenInPlay;
+        uint32 startPos;
     }
 
     uint256 public constant ENTRY_FEE = 1 ether;
-    uint256 public constant MAX_BOARD_LENGTH = (6 * (MAX_PLAYERS * 2)) + MAX_PLAYERS;
+    uint32 public constant MAX_BOARD_LENGTH = (6 * (MAX_PLAYERS * 2)) + MAX_PLAYERS;
     uint8 public constant MAX_PLAYERS = 4;
     uint8 public constant STARTING_TOKEN_COUNT = 4;
 
     bool private gameStarted = false;
     address private playerInTurn;
-    uint8 private gameTurns;
+    uint private gameTurns;
 
     address[MAX_PLAYERS] private players;
     address[] private playersInGame;
@@ -48,8 +49,8 @@ contract LudoGame {
     mapping(uint256 space => Token token) private tokenOnSpace;
 
     // Modifiers
-    modifier onlyPlayerInTurn() {
-        if (msg.sender != playerInTurn) revert LudoGame__PlayingOutOfTurn();
+    modifier onlyPlayerInTurn(address player) {
+        if (player != playerInTurn) revert LudoGame__PlayingOutOfTurn();
 
         _;
     }
@@ -60,8 +61,10 @@ contract LudoGame {
         player.tokenInPlay = Token({
             id: HelperFunctions.computeTokenId(abi.encodePacked(player.addr, player.tokenLeft, block.timestamp)),
             ownedBy: player.addr,
-            position: 0
+            position: player.startPos
         });
+
+        if (tokenOnSpace[player.startPos].ownedBy != address(0)) capture(player.tokenInPlay);
 
         passTurn();
     }
@@ -76,6 +79,7 @@ contract LudoGame {
         if (msg.value < ENTRY_FEE) revert LudoGame__NotEnoughEntryFee();
 
         player.addr = msg.sender;
+        player.startPos = uint32((MAX_BOARD_LENGTH / MAX_PLAYERS) * playersInGame.length);
         player.tokenLeft = STARTING_TOKEN_COUNT;
         playerInfo[msg.sender] = player;
 
@@ -112,14 +116,17 @@ contract LudoGame {
         emit TurnPassed(gameTurns, formerPlayer, playerInTurn);
     }
 
-    function play() external onlyPlayerInTurn {
+    function play() external onlyPlayerInTurn(msg.sender) returns (uint8) {
         Player storage player = playerInfo[msg.sender];
         uint8 roll = HelperFunctions.rollDie(abi.encode(player.addr, block.timestamp, player.tokenInPlay));
 
         // Handle Rolling Doubles for extra turn
         if (roll == 6) {
-            _play(player, roll, 1);
+          if (player.tokenInPlay.ownedBy == address(0)) bringOutToken(player);
+          else  _play(player, roll, 1);
+          
         } else {
+          // move(player, roll);
           // If Player Has no Token in play...
             if (player.tokenInPlay.ownedBy == address(0)) {
               // But has tokensLeft...
@@ -134,10 +141,12 @@ contract LudoGame {
                     passTurn();
                 }
             }
-
+            
             // But if player has token in Play already
-            move(player, roll);
+            else move(player, roll);
         }
+
+        return roll;
     }
 
     function _play(Player storage player, uint8 roll, uint count) private {
@@ -231,11 +240,19 @@ contract LudoGame {
         return tokenOnSpace[space];
     }
 
+    function getTokenPosition(Token memory token) external pure returns (uint32) {
+      return token.position;
+    }
+
     function _getPlayerInTurn() internal view returns (address) {
         return (playersInGame[gameTurns % MAX_PLAYERS]);
     }
 
     function getPlayerInTurn() external view returns (address) {
         return (playersInGame[gameTurns % MAX_PLAYERS]);
+    }
+
+    function getGameTurns() external view returns (uint) {
+      return gameTurns;
     }
 }

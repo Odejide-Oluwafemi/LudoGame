@@ -14,6 +14,19 @@ contract LudoGameTest  is Test {
   // Events
   event PlayerJoined(address indexed player);
 
+  struct Token {
+        bytes32 id;
+        address ownedBy;
+        uint32 position;
+    }
+
+    struct Player {
+        address addr;
+        uint8 tokenLeft;
+        Token tokenInPlay;
+        uint32 startPos;
+    }
+
   LudoGame game;
 
   uint constant PLAYERS_STARTING_AMOUNT = 10 ether;
@@ -104,9 +117,49 @@ contract LudoGameTest  is Test {
 
   function test__ModifierWorks() public startGame {
     assertTrue(game.isGameStarted());
+    assert(game.getPlayerInfo(players[0]).startPos == 0);
   }
 
   function test__ItShouldBeFirstPlayersTurnUponGameStart() public startGame {
     assertEq(game.getPlayerInTurn(), players[0]);
+    assertEq(game.getGameTurns(), 0);
+
+    // MAX_BOARD_LENGTH = (6 x (MAX_PLAYERS * 2)) + MAX_PLAYERS
+    // MAX_BOARD_LENGTH = (6 x (4 x 2)) + 4 == 52
+
+    // Therefore, startPos = uint32((MAX_BOARD_LENGTH / MAX_PLAYERS) * playersInGame.length);
+
+    // players[0].startPos should be equal to (52 / 4) * 0 = 0
+    // players[1].startPos should be equal to (52 / 4) * 1 = 13
+    // players[2].startPos should be equal to (52 / 4) * 2 = 26
+    // players[3].startPos should be equal to (52 / 4) * 3 = 39
+
+    assertEq(game.getPlayerInfo(players[0]).startPos, 0);
+    assertEq(game.getPlayerInfo(players[1]).startPos, 13);
+    assertEq(game.getPlayerInfo(players[2]).startPos, 26);
+    assertEq(game.getPlayerInfo(players[3]).startPos, 39);
+  }
+
+  function test__FirstPlayerPlaysAndEnsuresGameStateCorrectness() public startGame {
+    address player = players[0];
+
+    uint initialPosition = game.getTokenPosition(game.getPlayerInfo(player).tokenInPlay);
+    assertEq(initialPosition, 0);
+
+    vm.prank(player);
+
+    uint8 roll = game.play();
+    
+    uint tokenPosition = game.getTokenPosition(game.getPlayerInfo(player).tokenInPlay);
+
+    if (roll == 6) {
+      assertEq(tokenPosition, 6);
+    }
+    else {
+      // Can't move if starting roll is not a 6
+      assertEq(game.getPlayerInfo(player).tokenInPlay.ownedBy, address(0));
+      assertEq(tokenPosition, 0);
+      assertEq(game.getPlayerInTurn(), players[1]);
+    }
   }
 }
