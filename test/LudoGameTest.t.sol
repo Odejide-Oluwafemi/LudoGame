@@ -9,6 +9,7 @@ contract LudoGameTest  is Test {
   error LudoGame__AlreadyRegistered();
   error LudoGame__NotEnoughEntryFee();
   error LudoGame__GameAlreadyFull();
+  error LudoGame__GameIsNotAcceptingEntries();
 
   // Events
   event PlayerJoined(address indexed player);
@@ -65,7 +66,7 @@ contract LudoGameTest  is Test {
     vm.prank(player4);
     game.joinGame{value: entryFee}();
 
-    assert(game.getNumberOfPlayersJoined() == game.MAX_PLAYERS());
+    assert(game.getNumberOfPlayersInGame() == game.MAX_PLAYERS());
     assertTrue(game.isGameStarted());
 
     // Cannot Join when Game is Full
@@ -74,7 +75,7 @@ contract LudoGameTest  is Test {
     vm.deal(dummy, entryFee);
     vm.prank(dummy);
 
-    vm.expectRevert(LudoGame__GameAlreadyFull.selector);
+    vm.expectRevert(LudoGame__GameIsNotAcceptingEntries.selector);
     game.joinGame{value: entryFee}();
   }
 }
