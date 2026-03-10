@@ -11,6 +11,8 @@ contract LudoGame {
   error LudoGame__GameAlreadyFull();
   error LudoGame__PlayingOutOfTurn();
   error LudoGame__YouHaveNoMoreTokenLeft();
+  error LudoGame__SendWinnerRewardFailed();
+  error LudoGame__GameIsNotAcceptingEntries();
 
   // Events
   event PlayerJoined(address indexed player);
@@ -32,8 +34,7 @@ contract LudoGame {
   uint public constant MAX_BOARD_LENGTH = (6 * (MAX_PLAYERS * 2)) + MAX_PLAYERS;
   uint8 public constant MAX_PLAYERS = 4;
   uint8 public constant STARTING_TOKEN_COUNT = 4;
-
-  uint8 private playersCount;
+  
   bool private gameStarted = false;
   address private playerInTurn;
   uint8 private gameTurns;
@@ -62,7 +63,8 @@ contract LudoGame {
   }
 
   function joinGame() external payable {
-    if (playersCount == MAX_PLAYERS) revert LudoGame__GameAlreadyFull();
+    if (gameStarted) revert LudoGame__GameIsNotAcceptingEntries();
+    if (players[players.length - 1] != address(0)) revert LudoGame__GameAlreadyFull();
 
     Player storage player = playerInfo[msg.sender];
 
@@ -70,8 +72,7 @@ contract LudoGame {
     if (msg.value < ENTRY_FEE) revert LudoGame__NotEnoughEntryFee();
 
     player.addr = msg.sender;
-    players[playersCount] = msg.sender;
-    playersCount = playersCount + 1;
+    players[players.length] = msg.sender;
 
     // Handle Refund of excess entry fee
     if (msg.value > ENTRY_FEE) {
@@ -82,7 +83,7 @@ contract LudoGame {
       if (!success) revert LudoGame__RefundFailed();
     }
 
-    if (playersCount == MAX_PLAYERS) initializeGame();
+    if (players[players.length - 1] != address(0)) initializeGame();
 
     emit PlayerJoined(msg.sender);
   }
@@ -106,7 +107,7 @@ contract LudoGame {
         if (roll == 6) bringOutToken(player);
         else passTurn();
       }
-      else revert LudoGame__YouHaveNoMoreTokenLeft();
+      else passTurn();
     }
 
     uint32 spaceToLand = uint32((player.tokenInPlay.position + roll) % MAX_BOARD_LENGTH);
@@ -131,6 +132,24 @@ contract LudoGame {
         position: 0
       });
 
+      // Player Eliminated
+      if (capturedPlayer.tokenLeft == 0) {
+        for (uint8 i; i < players.length; i++) {
+          if (players[i] == capturedPlayer.addr) {
+            players[players.length - 1] = capturedPlayer.addr;
+            players[players.length - 1]  = address(0);
+          }
+        }
+      }
+
+      // If there remains only 1 player, GameOver, and send reward
+      if (players.length == 1) {
+        (bool success, ) = players[0].call{value: address(this).balance}("");
+        gameStarted = false;
+
+        if (!success) revert LudoGame__SendWinnerRewardFailed();
+      }
+
       tokenOnSpace[spaceToLand] = player.tokenInPlay;
     }
 
@@ -146,8 +165,8 @@ contract LudoGame {
     return address(this).balance;
   }
 
-  function getNumberOfPlayersJoined() external view returns (uint8) {
-    return playersCount;
+  function getNumberOfPlayersInGame() external view returns (uint8) {
+    return uint8(players.length);
   }
 
   function isGameStarted() external view returns (bool) {
