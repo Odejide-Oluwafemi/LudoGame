@@ -1,27 +1,35 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
+import { Die } from "src/Die.sol";
+
 contract LudoGame {
   // Errors
   error LudoGame__AlreadyRegistered();
   error LudoGame__NotEnoughEntryFee();
   error LudoGame__RefundFailed();
   error LudoGame__GameAlreadyFull();
+  error LudoGame__PlayingOutOfTurn();
 
   // Events
   event PlayerJoined(address indexed player);
 
   struct Player {
     address addr;
-    uint position;
+    uint32 position;
   }
 
   uint public constant ENTRY_FEE = 1 ether;
   uint8 public constant MAX_PLAYERS = 4;
   uint8 private playersCount;
   bool private gameStarted = false;
-  
+  address private playerInTurn;
   mapping(address => Player info) private playerInfo;
+  
+  // Modifiers
+  modifier onlyPlayerInTurn() {
+    if (msg.sender != playerInTurn) revert LudoGame__PlayingOutOfTurn();
+  }
 
   function joinGame() external payable {
     if (playersCount == MAX_PLAYERS) revert LudoGame__GameAlreadyFull();
@@ -48,8 +56,18 @@ contract LudoGame {
     emit PlayerJoined(msg.sender);
   }
 
-  function getPlayerInfo(address playerAddress) external view returns (Player memory) {
-    return playerInfo[playerAddress];
+  function play() external onlyPlayerInTurn {
+    Player storage player = playerInfo[msg.sender];
+
+    uint8 roll = Die.rollDie(abi.encodePacked(player.addr, block.timestamp));
+
+  }
+
+  function movePlayerPiece() private {}
+
+  // Getter Functions
+  function getPlayerInfo(address player) external view returns (Player memory) {
+    return playerInfo[player];
   }
 
   function getContractBalance() external view returns (uint) {
@@ -64,5 +82,7 @@ contract LudoGame {
     return gameStarted;
   }
 
-  function getPlayerBoardPosition() external view
+  function getPlayerBoardPosition(address player) external view returns(uint32) {
+    return playerInfo[player].position;
+  }
 }
