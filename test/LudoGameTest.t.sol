@@ -17,10 +17,13 @@ contract LudoGameTest  is Test {
   LudoGame game;
 
   uint constant PLAYERS_STARTING_AMOUNT = 10 ether;
+  uint entryFee;
+
   address[4] players;
 
   function setUp() public {
     game = new LudoGame();
+    entryFee = game.ENTRY_FEE();
 
     for (uint8 i; i < game.MAX_PLAYERS(); i++) {
       players[i] = makeAddr(string(abi.encodePacked(uint160(i * block.timestamp))));
@@ -28,9 +31,29 @@ contract LudoGameTest  is Test {
     }
   }
 
+  modifier startGame() {
+    address player1 = players[0];
+    address player2 = players[1];
+    address player3 = players[2];
+    address player4 = players[3];
+
+    vm.prank(player1);
+    game.joinGame{value: entryFee}();
+
+    vm.prank(player2);
+    game.joinGame{value: entryFee}();
+
+    vm.prank(player3);
+    game.joinGame{value: entryFee}();
+
+    vm.prank(player4);
+    game.joinGame{value: entryFee}();
+
+    _;
+  }
+
   function test__UsersCanJoinGameButNotMoreThanOnceAndWithTheRequiredEntryFee() public {
     address player1 = players[0];
-    uint entryFee = game.ENTRY_FEE();
 
     vm.startPrank(player1);
 
@@ -77,5 +100,9 @@ contract LudoGameTest  is Test {
 
     vm.expectRevert(LudoGame__GameIsNotAcceptingEntries.selector);
     game.joinGame{value: entryFee}();
+  }
+
+  function testModifier() public startGame {
+    assertTrue(game.isGameStarted());
   }
 }
