@@ -102,7 +102,11 @@ contract LudoGameTest  is Test {
     game.joinGame{value: entryFee}();
   }
 
-  function testModifier() public startGame {
+  function test__ModifierWorks() public startGame {
     assertTrue(game.isGameStarted());
+  }
+
+  function test__ItShouldBeFirstPlayersTurnUponGameStart() public startGame {
+    assertEq(game.getPlayerInTurn(), players[0]);
   }
 }

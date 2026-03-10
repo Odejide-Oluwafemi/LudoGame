@@ -97,17 +97,17 @@ contract LudoGame {
     }
 
     function initializeGame() private {
-        playerInTurn = getPlayerInTurn();
+        playerInTurn = _getPlayerInTurn();
         gameStarted = true;
 
         emit GameStarted(playersInGame, block.timestamp);
     }
 
     function passTurn() internal {
-        address formerPlayer = getPlayerInTurn();
+        address formerPlayer = _getPlayerInTurn();
 
         gameTurns = gameTurns + 1;
-        playerInTurn = getPlayerInTurn();
+        playerInTurn = _getPlayerInTurn();
 
         emit TurnPassed(gameTurns, formerPlayer, playerInTurn);
     }
@@ -231,7 +231,11 @@ contract LudoGame {
         return tokenOnSpace[space];
     }
 
-    function getPlayerInTurn() internal view returns (address) {
+    function _getPlayerInTurn() internal view returns (address) {
+        return (playersInGame[gameTurns % MAX_PLAYERS]);
+    }
+
+    function getPlayerInTurn() external view returns (address) {
         return (playersInGame[gameTurns % MAX_PLAYERS]);
     }
 }
