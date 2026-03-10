@@ -36,6 +36,7 @@ contract LudoGame {
   uint8 private playersCount;
   bool private gameStarted = false;
   address private playerInTurn;
+  uint8 private gameTurns;
 
   address[MAX_PLAYERS] private players;
   mapping (address player => Player info) private playerInfo;
@@ -56,6 +57,8 @@ contract LudoGame {
       ownedBy: player.addr,
       position: 0
     });
+
+    passTurn();
   }
 
   function joinGame() external payable {
@@ -79,12 +82,20 @@ contract LudoGame {
       if (!success) revert LudoGame__RefundFailed();
     }
 
-    if (playersCount == MAX_PLAYERS) gameStarted = true;
+    if (playersCount == MAX_PLAYERS) initializeGame();
 
     emit PlayerJoined(msg.sender);
   }
 
-  function passTurn() internal {}
+  function initializeGame() private {
+    playerInTurn = getPlayerInTurn();
+    gameStarted = true;
+  }
+
+  function passTurn() internal {
+    gameTurns = gameTurns + 1;
+    playerInTurn = getPlayerInTurn();
+  }
 
   function play() external onlyPlayerInTurn {
     Player storage player = playerInfo[msg.sender];
@@ -122,6 +133,8 @@ contract LudoGame {
 
       tokenOnSpace[spaceToLand] = player.tokenInPlay;
     }
+
+    passTurn();
   }
 
   // Getter Functions
@@ -147,5 +160,9 @@ contract LudoGame {
 
   function getTokenOnSpace(uint32 space) external view returns (Token memory) {
     return tokenOnSpace[space];
+  }
+
+  function getPlayerInTurn() internal view returns (address) {
+    return (players[gameTurns % MAX_PLAYERS]);
   }
 }
