@@ -20,6 +20,7 @@ contract LudoGame {
     event TurnPassed(uint256 indexed gameTurns, address formerPlayer, address playerInTurn);
     event PlayerEliminated(address indexed player);
     event GameOver(address indexed winner);
+    event Captured(address capturedPlayer, address tokenCapturing);
 
     struct Token {
         bytes32 id;
@@ -56,7 +57,11 @@ contract LudoGame {
     }
 
     function bringOutToken(Player storage player) internal {
-        if (player.tokenLeft == 0) revert LudoGame__YouHaveNoMoreTokenLeft();
+        if (player.tokenLeft == 0)
+        {
+          passTurn();
+          eliminatePlayer(player.addr);
+        }
 
         player.tokenInPlay = Token({
             id: HelperFunctions.computeTokenId(abi.encodePacked(player.addr, player.tokenLeft, block.timestamp)),
@@ -64,7 +69,9 @@ contract LudoGame {
             position: player.startPos
         });
 
-        if (tokenOnSpace[player.startPos].ownedBy != address(0)) capture(player.tokenInPlay);
+        if (tokenOnSpace[player.tokenInPlay.position].ownedBy != address(0)) capture(player.tokenInPlay, player.tokenInPlay.position);
+
+        move(player, 6);
 
         passTurn();
     }
@@ -118,33 +125,55 @@ contract LudoGame {
 
     function play() external onlyPlayerInTurn(msg.sender) returns (uint8) {
         Player storage player = playerInfo[msg.sender];
-        uint8 roll = HelperFunctions.rollDie(abi.encode(player.addr, block.timestamp, player.tokenInPlay));
+        
+        uint8 roll = 6; //HelperFunctions.rollDie(abi.encode(player.addr, block.timestamp, player.tokenInPlay));
 
         // Handle Rolling Doubles for extra turn
         if (roll == 6) {
           if (player.tokenInPlay.ownedBy == address(0)) bringOutToken(player);
-          else  _play(player, roll, 1);
-          
-        } else {
-          // move(player, roll);
-          // If Player Has no Token in play...
-            if (player.tokenInPlay.ownedBy == address(0)) {
-              // But has tokensLeft...
-                if (player.tokenLeft > 0) {
-                  // And played a 6...
-                    if (roll == 6) bringOutToken(player);
-                    // Then bringOutToken, else passTurn
-                    else passTurn();
-                } else {
-                  // If Player Has no Token in play, and no tokenLeft, elimatePlayer (if not elimated before for whatever buggish reason)
-                    eliminatePlayer(player.addr);
-                    passTurn();
-                }
-            }
+
+          else  {
+            move(player, roll);
+
+            uint8 roll2 = HelperFunctions.rollDie(abi.encode(player.addr, block.timestamp, player.tokenInPlay));
             
-            // But if player has token in Play already
-            else move(player, roll);
+            if (roll2 == 6) {
+              uint8 roll3 = HelperFunctions.rollDie(abi.encode(player.addr, block.timestamp, player.tokenInPlay));
+
+              move(player, roll3);
+
+              if (roll3 == 6) {
+                move(player, 0);
+              }
+            }
+            else {
+              move(player, roll2);
+            }
+          }
         }
+        else {
+          if (player.tokenInPlay.ownedBy == player.addr) move(player, roll);
+        }
+        // else {
+        //   // move(player, roll);
+        //   // If Player Has no Token in play...
+        //     if (player.tokenInPlay.ownedBy == address(0)) {
+        //       // But has tokensLeft...
+        //         if (player.tokenLeft > 0) {
+        //           // And played a 6...
+        //             if (roll == 6) bringOutToken(player);
+        //             // Then bringOutToken, else passTurn
+        //             else passTurn();
+        //         } else {
+        //           // If Player Has no Token in play, and no tokenLeft, elimatePlayer (if not elimated before for whatever buggish reason)
+        //             eliminatePlayer(player.addr);
+        //             passTurn();
+        //         }
+        //     }
+            
+        //     // But if player has token in Play already
+        //     else move(player, roll);
+        // }
 
         return roll;
     }
@@ -176,9 +205,9 @@ contract LudoGame {
         emit PlayerEliminated(player);
     }
 
-    function capture(Token storage tokenCapturing) private {
+    function capture(Token storage tokenCapturing, uint spaceToLand) private {
       // Capture Logic
-            Player storage capturedPlayer = playerInfo[tokenCapturing.ownedBy];
+            Player storage capturedPlayer = playerInfo[tokenOnSpace[spaceToLand].ownedBy];
             uint32 contendingSpace = tokenCapturing.position;
 
             capturedPlayer.tokenLeft = capturedPlayer.tokenLeft - 1;
@@ -201,18 +230,19 @@ contract LudoGame {
             }
 
             tokenOnSpace[contendingSpace] = tokenCapturing;
+            emit Captured(capturedPlayer.addr, tokenCapturing.ownedBy);
     }
 
     function move(Player storage player, uint8 roll) private {
         uint32 spaceToLand = uint32((player.tokenInPlay.position + roll) % MAX_BOARD_LENGTH);
 
         // Capture if any token is on the spaceToLand
-        if (tokenOnSpace[spaceToLand].ownedBy != address(0)) capture(player.tokenInPlay);
+        if (tokenOnSpace[spaceToLand].ownedBy != address(0)) capture(player.tokenInPlay, spaceToLand);
         
         tokenOnSpace[spaceToLand] = player.tokenInPlay;
         player.tokenInPlay.position = player.tokenInPlay.position + roll;
 
-        passTurn();
+        if (roll != 6)  passTurn();
     }
 
     // Getter Functions

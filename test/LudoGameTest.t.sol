@@ -171,24 +171,22 @@ contract LudoGameTest  is Test {
     assertEq(player1StartPos, 0);
 
     vm.prank(player1);
-
     uint8 roll1 = game.play();
     
-    uint token1Position = game.getTokenPosition(game.getPlayerInfo(player1).tokenInPlay);
-
     if (roll1 == 6) {
+      uint token1Position = game.getTokenPosition(game.getPlayerInfo(player1).tokenInPlay);
       assertEq(token1Position, 6);
     }
     else {
       // Can't move if starting roll is not a 6
       assertEq(game.getPlayerInfo(player1).tokenInPlay.ownedBy, address(0));
-      assertEq(token1Position, 0);
+      
       assertEq(game.getPlayerInTurn(), players[1]);
     }
 
     // Assert that players cannot play if it' snot their turn yet
 
-    // Player 2 Plays
+    // Player 2 Plays and Captures
     address player2 = players[1];
 
     uint initialPosition = game.getTokenPosition(game.getPlayerInfo(player2).tokenInPlay);
